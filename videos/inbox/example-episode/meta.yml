@@ -1,0 +1,45 @@
+# Copy this folder to videos/inbox/<your-episode-slug>/, drop your clips in,
+# fill in the fields and push. Delete `skip: true` in your copy.
+skip: true
+
+title: "Gaon Ki Holi | 90s Wali Masti, Gulal Aur Gujiya 🎨"
+topic: "Holi"
+summary: >
+  Holi ki subah se lekar shaam tak, kaise poora gaon rang, dhol aur gujiya
+  ke saath ek ho jaata tha: tesu ke phoolon ka rang, pichkari ki ladaai aur
+  dadi ke haath ki thandai.
+highlights:
+  - "Tesu ke phoolon se ghar pe bana natural rang"
+  - "Pital ki pichkari aur mohalle ki toli"
+  - "Dadi ki thandai aur gujiya ki khushboo"
+  - "Shaam ko Holika ke paas gaon ka mela"
+keywords: ["holi", "village holi", "gujiya", "thandai", "tesu flowers", "90s holi"]
+location: "Purvanchal, Uttar Pradesh"
+year: "1996"
+language: hinglish           # hinglish | hindi | english
+
+# Optional ------------------------------------------------------------------
+# clips:                     # explicit order; default = every video/photo file in this folder by name
+#   - 01_intro.mp4
+#   - 02_old_photo.jpg       # photos get a slow zoom for `image_seconds`
+#   - https://example.com/direct-download/03_rang.mp4
+# image_seconds: 4
+# hashtags: ["#HoliSpecial"] # always include these (on top of the brand hashtag)
+# ai_title: true             # let the AI write the title instead of using `title`
+# overlay_text: "Gaon Ki Holi"   # on-video title (Latin script renders best)
+# thumbnail_text: "90s WALI HOLI"
+# thumbnail_image: cover.jpg # otherwise a frame at 30% of the video is used
+# thumbnail_at: 0.3
+# music: auto                # auto | none | a file name in assets/music/
+# music_volume: 0.1
+# look: vintage              # vintage | vhs | none
+# intro: true                # prepend assets/intro.mp4 if it exists
+# outro: true                # append assets/outro.mp4 if it exists
+# publish_at: "2026-10-05T18:30:00+05:30"   # schedule; uploads as private until then
+# chapters:                  # first must be 0:00, at least 3, each ≥10s
+#   - {time: "0:00", title: "Holi ki subah"}
+#   - {time: "1:20", title: "Rang aur pichkari"}
+#   - {time: "3:45", title: "Gujiya aur thandai"}
+# overrides:                 # override anything from config/channel.yml for this video
+#   edit: {format: short}
+#   upload: {privacy_status: public}

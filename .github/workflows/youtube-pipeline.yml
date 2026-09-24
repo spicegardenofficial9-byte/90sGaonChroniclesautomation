@@ -1,0 +1,105 @@
+name: YouTube Pipeline
+
+on:
+  # New episode pushed into videos/inbox/ → edit + upload it
+  push:
+    branches: [main]
+    paths: ["videos/inbox/**"]
+  # Daily run picks up whatever is still pending (12:00 IST)
+  schedule:
+    - cron: "30 6 * * *"
+  # Manual run from the Actions tab
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "What to do"
+        type: choice
+        options: [upload, dry-run, metadata-only]
+        default: dry-run
+      slug:
+        description: "Only this folder in videos/inbox/ (optional)"
+        required: false
+      max_videos:
+        description: "Max videos this run (optional)"
+        required: false
+      force:
+        description: "Re-process even if already uploaded"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # commit data/ + videos/processed/ back to the repo
+
+concurrency:
+  group: youtube-pipeline
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ffmpeg and fonts
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg fonts-dejavu-core
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          # inputs go through env vars, never straight into the script (prevents injection)
+          MODE: ${{ inputs.mode || 'upload' }}
+          SLUG: ${{ inputs.slug }}
+          MAX_VIDEOS: ${{ inputs.max_videos }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          args=()
+          [ "$MODE" = "dry-run" ] && args+=(--dry-run)
+          [ "$MODE" = "metadata-only" ] && args+=(--metadata-only)
+          [ -n "$SLUG" ] && args+=(--slug "$SLUG")
+          [ -n "$MAX_VIDEOS" ] && args+=(--max-videos "$MAX_VIDEOS")
+          [ "$FORCE" = "true" ] && args+=(--force)
+          python -m pipeline.run "${args[@]}"
+
+      - name: Upload rendered video for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendered-${{ github.run_id }}
+          path: |
+            build/*/*.mp4
+            build/*/thumbnail.jpg
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Commit upload history back to the repo
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data videos
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(pipeline): record processed videos [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((i * 5))
+          done
+          exit 1

@@ -1,0 +1,7 @@
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.env
+scripts/client_secret*.json
