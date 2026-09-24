@@ -42,7 +42,8 @@ channel:
 
 upload:
   category_id: "22"            # 22 = People & Blogs, 24 = Entertainment, 19 = Travel & Events
-  privacy_status: "private"    # private | unlisted | public. Stays private if publish_at is set.
+  privacy_status: "private"    # every video is first uploaded as a PRIVATE preview
+  publish_privacy: "public"    # what "publish" changes it to after approval (public | unlisted)
   made_for_kids: false
   contains_synthetic_media: false  # set true if any part is AI-generated/realistic-altered
   default_language: "hi"

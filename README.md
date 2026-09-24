@@ -20,7 +20,7 @@ videos/inbox/<episode>/  ──►  edit (ffmpeg)  ──►  metadata (Claude /
 | Thumbnail | `pipeline/thumbnail.py` | Takes a frame (or your `cover.jpg`), adds a warm retro tint, big outlined text and a channel badge. |
 | Upload | `pipeline/uploader.py` | YouTube Data API v3 with a resumable upload and retries, then sets the thumbnail, the optional playlist and the optional `publish_at` schedule. |
 | Orchestration | `pipeline/run.py` | Skips videos already in `data/published.json`. Saves the generated metadata to `videos/processed/<episode>/`. |
-| Automation | `.github/workflows/youtube-pipeline.yml` | Runs on a push to `videos/inbox/`, daily at 12:00 IST, or manually. Commits the history back to the repo and attaches the rendered MP4 as a workflow artifact so you can review it. |
+| Automation | `.github/workflows/youtube-pipeline.yml` | Started manually for one episode (`preview`, `publish`, `update-metadata`, `dry-run`). Commits the history back to the repo and attaches the rendered MP4 as a workflow artifact. |
 
 ## One-time setup
 
@@ -44,20 +44,24 @@ videos/inbox/<episode>/  ──►  edit (ffmpeg)  ──►  metadata (Claude /
 
 > **Important:** until your Google Cloud project passes YouTube's API audit, videos uploaded through the API are **locked as private**. Submit the [audit form](https://support.google.com/youtube/contact/yt_api_form) early. Each upload costs 1,600 of the default 10,000 daily quota units, about 6 uploads a day.
 
-## Publishing an episode
+## Daily flow
 
-```bash
-cp -r videos/inbox/example-episode videos/inbox/gaon-ki-holi
-# put clips/photos in the folder: 01_intro.mp4, 02_rang.mp4, 03_old_photo.jpg ...
-# edit videos/inbox/gaon-ki-holi/meta.yml and delete the `skip: true` line
-git add videos/inbox/gaon-ki-holi && git commit -m "Episode: Gaon ki Holi" && git push
-```
+Every video goes out in two steps, so nothing is public before it has been checked:
 
-The push starts the workflow. The Actions run summary shows the generated title, description and hashtags, and the rendered video is attached as an artifact.
+1. **Preview.** The day's clips are put in a ZIP on Google Drive, shared as "Anyone with the link".
+   An episode folder `videos/inbox/<slug>/meta.yml` gets the ZIP link, title and description.
+   Running the workflow with **mode = preview** downloads and unzips the clips, edits them, and uploads
+   the video to YouTube as **Private** with its description, hashtags and thumbnail. It then deletes
+   the downloaded ZIP from the runner.
+2. **Publish.** After the private video has been checked in YouTube Studio, running **mode = publish**
+   makes it public (or scheduled if `publish_at` is set) and moves the ZIP on Google Drive to the trash.
 
-**Review before going live:** keep `privacy_status: private` (or set `publish_at`), check the video in YouTube Studio, and then publish. You can also run the workflow manually with **mode = dry-run** to render and generate everything without uploading.
+Other modes: **update-metadata** re-applies an edited title or description without re-rendering.
+**preview + force** re-renders and replaces the private preview. **dry-run** renders without uploading.
 
-Clips too big for LFS? List direct-download URLs under `clips:` in `meta.yml`, for example a Dropbox `?dl=1` link, an S3 URL or a GitHub release asset.
+> Moving the ZIP to the Drive trash needs a refresh token that also has the Drive permission, and the
+> **Google Drive API** enabled in the Cloud project. Otherwise publish still works, and the run summary
+> reminds you to delete the ZIP by hand.
 
 ### `meta.yml` fields
 

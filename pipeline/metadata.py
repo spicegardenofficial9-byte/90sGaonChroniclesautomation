@@ -354,6 +354,15 @@ def generate_metadata(job: VideoJob, history: History, attempts: int = 4) -> dic
     previous = history.descriptions()
 
     best, best_score, feedback = None, 2.0, ""
+    if job.meta.get("description"):
+        # written by hand in meta.yml: use it as-is, only warn if it repeats an older one
+        best = {"title": job.meta.get("title") or job.title, "body": str(job.meta["description"]),
+                "hashtags": [], "tags": [], "_source": "manual",
+                "thumbnail_text": job.meta.get("thumbnail_text") or job.meta.get("topic") or job.title}
+        best_score = max_similarity(best["body"], previous)
+        if best_score > threshold:
+            log.warning("[%s] description is %.0f%% similar to an earlier one", job.slug, best_score * 100)
+        attempts = 0
     for attempt in range(attempts):
         raw, source = None, "claude"
         if use_ai:

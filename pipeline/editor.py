@@ -18,6 +18,7 @@ import logging
 import re
 import shutil
 import subprocess
+import zipfile
 from pathlib import Path
 
 import requests
@@ -69,6 +70,14 @@ def has_audio(path: Path) -> bool:
     return any(s.get("codec_type") == "audio" for s in probe(path).get("streams", []))
 
 
+def is_silent(path: Path) -> bool:
+    """True if the audio track is (near) digital silence. loudnorm turns pure silence into NaNs."""
+    proc = subprocess.run(["ffmpeg", "-i", str(path), "-map", "0:a:0", "-af", "volumedetect", "-f", "null", "-"],
+                          capture_output=True, text=True)
+    match = re.search(r"max_volume: (-?[\d.]+|-inf) dB", proc.stderr)
+    return not match or match.group(1) == "-inf" or float(match.group(1)) < -80
+
+
 def duration(path: Path) -> float:
     return float(probe(path)["format"]["duration"])
 
@@ -105,13 +114,55 @@ def download(url: str, dest_dir: Path) -> Path:
         match = re.search(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", cd)
         name = match.group(1) if match else url.split("?")[0].rstrip("/").split("/")[-1]
         name = re.sub(r"[^\w.-]", "_", name) or "clip"
-        if Path(name).suffix.lower() not in VIDEO_EXTS | IMAGE_EXTS:
+        if Path(name).suffix.lower() not in VIDEO_EXTS | IMAGE_EXTS | {".zip"}:
             name += ".mp4"
         dest = dest_dir / f"{key}_{name}"
         with open(dest, "wb") as fh:
             for chunk in resp.iter_content(chunk_size=1 << 20):
                 fh.write(chunk)
     return dest
+
+
+def _natural_key(path: Path) -> list:
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", str(path))]
+
+
+def expand_zip(archive: Path, work_dir: Path) -> list[Path]:
+    """Extract a ZIP of clips and return its videos/photos in name order (01, 02, ... 10)."""
+    out = work_dir / f"unzipped_{archive.stem}"
+    out.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive) as zf:
+        for member in zf.infolist():
+            target = (out / member.filename).resolve()
+            if not str(target).startswith(str(out.resolve())):  # ignore paths that escape the folder
+                continue
+            zf.extract(member, out)
+    media = [p for p in out.rglob("*")
+             if p.is_file() and p.suffix.lower() in VIDEO_EXTS | IMAGE_EXTS
+             and "__MACOSX" not in p.parts and not p.name.startswith(".")
+             and p.stem.lower() not in {"thumbnail", "cover"}]
+    if not media:
+        raise ValueError(f"{archive.name} has no video or photo files")
+    log.info("Extracted %d clip(s) from %s", len(media), archive.name)
+    return sorted(media, key=lambda p: _natural_key(p.relative_to(out)))
+
+
+def find_cover(work_dir: Path) -> Path | None:
+    """A thumbnail.jpg / cover.jpg inside an extracted ZIP, if there is one."""
+    for p in work_dir.glob("unzipped_*/**/*"):
+        if p.stem.lower() in {"thumbnail", "cover"} and p.suffix.lower() in IMAGE_EXTS:
+            return p
+    return None
+
+
+def cleanup_sources(work_dir: Path) -> None:
+    """Delete downloaded ZIPs/clips, extracted files and intermediate renders."""
+    for p in work_dir.iterdir():
+        if p.is_dir() and p.name.startswith("unzipped_"):
+            shutil.rmtree(p, ignore_errors=True)
+        elif p.is_file() and (p.suffix.lower() == ".zip" or p.name.startswith("norm_")
+                              or p.name in {"joined.mp4", "concat.txt"} or re.match(r"[0-9a-f]{8}_", p.name)):
+            p.unlink()
 
 
 def normalize_clip(src: Path, dest: Path, edit_cfg: dict, image_seconds: float) -> Path:
@@ -179,7 +230,11 @@ def edit_video(job: VideoJob, work_dir: Path) -> Path:
     if job.meta.get("intro", True) and intro.exists():
         sources.append(intro)
     for clip in job.clips:
-        sources.append(download(clip, work_dir) if isinstance(clip, str) else clip)
+        path = download(clip, work_dir) if isinstance(clip, str) else Path(clip)
+        if path.suffix.lower() not in VIDEO_EXTS | IMAGE_EXTS and zipfile.is_zipfile(path):
+            sources.extend(expand_zip(path, work_dir))
+        else:
+            sources.append(path)
     if job.meta.get("outro", True) and outro.exists():
         sources.append(outro)
     if not job.clips:
@@ -249,6 +304,8 @@ def _final_pass(job: VideoJob, src: Path, dest: Path, total: float, edit_cfg: di
             "[voice][ducked]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
             f"loudnorm=I={loud}:TP=-1.5:LRA=11[aout]",
         ]
+    elif is_silent(src):
+        filters.append("[0:a]anull[aout]")
     else:
         filters.append(f"[0:a]loudnorm=I={loud}:TP=-1.5:LRA=11[aout]")
 

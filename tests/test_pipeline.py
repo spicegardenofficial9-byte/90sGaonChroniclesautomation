@@ -178,3 +178,63 @@ def test_share_links_become_direct_downloads():
         assert direct_url(link) == f"https://drive.usercontent.google.com/download?id={fid}&export=download&confirm=t"
     assert direct_url("https://www.dropbox.com/s/abc/clip.mp4?dl=0") == "https://www.dropbox.com/s/abc/clip.mp4?dl=1"
     assert direct_url("https://example.com/a.mp4") == "https://example.com/a.mp4"
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
+def test_zip_of_clips_is_rendered_in_order_then_deleted(tmp_path):
+    import zipfile
+
+    from pipeline.editor import cleanup_sources, duration, edit_video, find_cover
+
+    src = tmp_path / "src"
+    src.mkdir()
+    for name, secs in (("2.mp4", 1), ("10.mp4", 2)):
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"testsrc=size=320x240:rate=30:duration={secs}",
+                        str(src / name)], check=True, capture_output=True)
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360", "-frames:v", "1",
+                    str(src / "cover.jpg")], check=True, capture_output=True)
+    job = make_job(tmp_path, "zip-episode")
+    with zipfile.ZipFile(job.folder / "day.zip", "w") as zf:
+        for f in src.iterdir():
+            zf.write(f, f"clips/{f.name}")
+        zf.writestr("__MACOSX/clips/._2.mp4", "junk")
+    job = load_job(job.folder, CONFIG)
+    assert [p.name for p in job.clips] == ["day.zip"]
+    job.config["edit"]["preset"] = "ultrafast"
+
+    work = tmp_path / "build"
+    out = edit_video(job, work)
+    assert 2.8 < duration(out) < 3.3          # 1s + 2s clips, cover.jpg not used as a clip
+    assert find_cover(work).name == "cover.jpg"
+
+    (work / "abcd1234_day.zip").write_bytes(b"downloaded copy")
+    cleanup_sources(work)
+    assert not list(work.glob("*.zip")) and not list(work.glob("unzipped_*"))
+    assert out.exists()
+
+
+def test_hand_written_description_is_used_as_is(tmp_path):
+    job = make_job(tmp_path, "manual", description="Meri apni likhi kahani.", hashtags=["#MeraGaon"],
+                   keywords=["gaon", "kahani"])
+    meta = generate_metadata(job, History(tmp_path / "h.json"))
+    assert meta["generator"] == "manual"
+    assert meta["description"].startswith("Meri apni likhi kahani.")
+    assert "#MeraGaon" in meta["hashtags"] and meta["hashtags"][0] == "#90sGaonChronicles"
+
+
+def test_publish_makes_preview_public_and_trashes_drive_zip(tmp_path, monkeypatch):
+    from pipeline import run, uploader
+
+    calls = {}
+    monkeypatch.setattr(uploader, "set_privacy", lambda vid, privacy, at=None: calls.update(privacy=(vid, privacy, at)))
+    monkeypatch.setattr(uploader, "trash_drive_files", lambda urls: calls.update(trashed=urls) or [])
+    monkeypatch.setattr(run, "PUBLISHED_PATH", tmp_path / "published.json")
+
+    link = "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOpQrStUv/view?usp=sharing"
+    job = make_job(tmp_path, "ep1", clips=[link])
+    published = {"ep1": {"status": "preview", "video_id": "abc", "url": "https://youtu.be/abc", "title": "t"}}
+    run.publish(job, published)
+
+    assert calls["privacy"] == ("abc", "public", None)
+    assert calls["trashed"] == [link]
+    assert published["ep1"]["status"] == "published"

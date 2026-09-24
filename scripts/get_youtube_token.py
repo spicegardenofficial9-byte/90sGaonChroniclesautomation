@@ -18,7 +18,9 @@ from pathlib import Path
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
-          "https://www.googleapis.com/auth/youtube"]
+          "https://www.googleapis.com/auth/youtube",
+          # lets the pipeline move each day's ZIP to the Drive trash after publishing
+          "https://www.googleapis.com/auth/drive"]
 
 secret_file = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).with_name("client_secret.json"))
 flow = InstalledAppFlow.from_client_secrets_file(str(secret_file), SCOPES)

@@ -64,11 +64,11 @@ def load_job(folder: Path, channel_config: dict) -> VideoJob:
         else:
             clips.append(folder / entry)
     if not clips:
-        # No explicit list: every video/photo in the folder, sorted by name (01_, 02_, ...).
+        # No explicit list: every video/photo/ZIP in the folder, sorted by name (01_, 02_, ...).
         # Files named thumbnail/cover are only used for the thumbnail.
         skip = {meta.get("thumbnail_image"), "thumbnail.jpg", "thumbnail.png", "cover.jpg", "cover.png"}
         clips = sorted(p for p in folder.iterdir()
-                       if p.suffix.lower() in VIDEO_EXTS | IMAGE_EXTS and p.name not in skip)
+                       if p.suffix.lower() in VIDEO_EXTS | IMAGE_EXTS | {".zip"} and p.name not in skip)
 
     return VideoJob(slug=folder.name, folder=folder, meta=meta, config=config, clips=clips)
 

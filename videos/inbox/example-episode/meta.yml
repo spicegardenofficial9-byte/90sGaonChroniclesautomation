@@ -19,10 +19,13 @@ year: "1996"
 language: hinglish           # hinglish | hindi | english
 
 # Optional ------------------------------------------------------------------
-# clips:                     # explicit order; default = every video/photo file in this folder by name
+# clips:                     # explicit order; default = every video/photo/ZIP file in this folder by name
+#   - https://drive.google.com/file/d/XXXX/view   # a ZIP (or single clip) shared "Anyone with the link"
 #   - 01_intro.mp4
 #   - 02_old_photo.jpg       # photos get a slow zoom for `image_seconds`
-#   - https://example.com/direct-download/03_rang.mp4
+# Inside a ZIP, clips play in name order (1, 2, ... 10); cover.jpg/thumbnail.jpg becomes the thumbnail.
+# description: |             # hand-written description (skips the AI/template generator)
+#   Yaad hai woh din...
 # image_seconds: 4
 # hashtags: ["#HoliSpecial"] # always include these (on top of the brand hashtag)
 # ai_title: true             # let the AI write the title instead of using `title`

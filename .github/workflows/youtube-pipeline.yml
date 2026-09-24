@@ -1,29 +1,19 @@
 name: YouTube Pipeline
 
 on:
-  # New episode pushed into videos/inbox/ → edit + upload it
-  push:
-    branches: [main]
-    paths: ["videos/inbox/**"]
-  # Daily run picks up whatever is still pending (12:00 IST)
-  schedule:
-    - cron: "30 6 * * *"
-  # Manual run from the Actions tab
+  # Started by hand (or by Claude) from the Actions tab for one episode at a time
   workflow_dispatch:
     inputs:
       mode:
-        description: "What to do"
+        description: "preview = render + upload PRIVATE, publish = make it public + delete the Drive ZIP"
         type: choice
-        options: [upload, dry-run, metadata-only]
-        default: dry-run
+        options: [preview, publish, update-metadata, dry-run, metadata-only]
+        default: preview
       slug:
-        description: "Only this folder in videos/inbox/ (optional)"
-        required: false
-      max_videos:
-        description: "Max videos this run (optional)"
-        required: false
+        description: "Episode folder in videos/inbox/"
+        required: true
       force:
-        description: "Re-process even if already uploaded"
+        description: "preview only: re-render and replace an existing preview"
         type: boolean
         default: false
 
@@ -49,6 +39,7 @@ jobs:
           cache: pip
 
       - name: Install ffmpeg and fonts
+        if: inputs.mode != 'publish' && inputs.mode != 'update-metadata'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q ffmpeg fonts-dejavu-core
@@ -63,27 +54,29 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           # inputs go through env vars, never straight into the script (prevents injection)
-          MODE: ${{ inputs.mode || 'upload' }}
+          MODE: ${{ inputs.mode }}
           SLUG: ${{ inputs.slug }}
-          MAX_VIDEOS: ${{ inputs.max_videos }}
           FORCE: ${{ inputs.force }}
         run: |
-          args=()
-          [ "$MODE" = "dry-run" ] && args+=(--dry-run)
-          [ "$MODE" = "metadata-only" ] && args+=(--metadata-only)
-          [ -n "$SLUG" ] && args+=(--slug "$SLUG")
-          [ -n "$MAX_VIDEOS" ] && args+=(--max-videos "$MAX_VIDEOS")
+          args=(--slug "$SLUG")
+          case "$MODE" in
+            publish) args+=(--publish) ;;
+            update-metadata) args+=(--update-metadata) ;;
+            dry-run) args+=(--dry-run) ;;
+            metadata-only) args+=(--metadata-only) ;;
+          esac
           [ "$FORCE" = "true" ] && args+=(--force)
           python -m pipeline.run "${args[@]}"
 
       - name: Upload rendered video for review
-        if: always()
+        if: always() && (inputs.mode == 'preview' || inputs.mode == 'dry-run')
         uses: actions/upload-artifact@v4
         with:
           name: rendered-${{ github.run_id }}
           path: |
             build/*/*.mp4
             build/*/thumbnail.jpg
+            videos/processed/*/description.txt
           if-no-files-found: ignore
           retention-days: 7
 
