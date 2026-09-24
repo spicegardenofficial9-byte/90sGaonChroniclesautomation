@@ -166,3 +166,15 @@ def test_ai_request_and_parsing(tmp_path, monkeypatch):
     assert meta["generator"] == "claude"
     assert meta["title"] == "Holi 1996 🎨"
     assert "#TesuKeRang" in meta["hashtags"]
+
+
+def test_share_links_become_direct_downloads():
+    from pipeline.editor import direct_url
+
+    fid = "1AbCdEfGhIjKlMnOpQrStUvWxYz012345"
+    for link in (f"https://drive.google.com/file/d/{fid}/view?usp=sharing",
+                 f"https://drive.google.com/open?id={fid}",
+                 f"https://drive.google.com/uc?export=download&id={fid}"):
+        assert direct_url(link) == f"https://drive.usercontent.google.com/download?id={fid}&export=download&confirm=t"
+    assert direct_url("https://www.dropbox.com/s/abc/clip.mp4?dl=0") == "https://www.dropbox.com/s/abc/clip.mp4?dl=1"
+    assert direct_url("https://example.com/a.mp4") == "https://example.com/a.mp4"

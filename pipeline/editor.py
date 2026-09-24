@@ -15,13 +15,14 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
 import requests
 
-from .config import ASSETS_DIR, IMAGE_EXTS, VideoJob
+from .config import ASSETS_DIR, IMAGE_EXTS, VIDEO_EXTS, VideoJob
 
 log = logging.getLogger(__name__)
 
@@ -72,14 +73,41 @@ def duration(path: Path) -> float:
     return float(probe(path)["format"]["duration"])
 
 
+DRIVE_ID = re.compile(r"(?:/file/d/|[?&]id=)([A-Za-z0-9_-]{10,})")
+
+
+def direct_url(url: str) -> str:
+    """Turn Google Drive / Dropbox share links into direct-download links."""
+    if "drive.google.com" in url or "drive.usercontent.google.com" in url:
+        match = DRIVE_ID.search(url)
+        if match:
+            return f"https://drive.usercontent.google.com/download?id={match.group(1)}&export=download&confirm=t"
+    if "dropbox.com" in url:
+        url = re.sub(r"([?&])dl=0", r"\1dl=1", url)
+        if "dl=1" not in url and "raw=1" not in url:
+            url += ("&" if "?" in url else "?") + "dl=1"
+    return url
+
+
 def download(url: str, dest_dir: Path) -> Path:
-    name = url.split("?")[0].rstrip("/").split("/")[-1] or "clip.mp4"
-    dest = dest_dir / f"{hashlib.sha1(url.encode()).hexdigest()[:8]}_{name}"
-    if dest.exists():
-        return dest
+    key = hashlib.sha1(url.encode()).hexdigest()[:8]
+    existing = list(dest_dir.glob(f"{key}_*"))
+    if existing:
+        return existing[0]
     log.info("Downloading %s", url)
-    with requests.get(url, stream=True, timeout=60) as resp:
+    with requests.get(direct_url(url), stream=True, timeout=60) as resp:
         resp.raise_for_status()
+        if resp.headers.get("Content-Type", "").startswith("text/html"):
+            raise RuntimeError(f"{url} returned a web page, not a file. "
+                               "Share it as 'Anyone with the link' and use a file link, not a folder link.")
+        # prefer the real file name (Drive links don't have one in the URL)
+        cd = resp.headers.get("Content-Disposition", "")
+        match = re.search(r"filename\*?=(?:UTF-8'')?\"?([^\";]+)", cd)
+        name = match.group(1) if match else url.split("?")[0].rstrip("/").split("/")[-1]
+        name = re.sub(r"[^\w.-]", "_", name) or "clip"
+        if Path(name).suffix.lower() not in VIDEO_EXTS | IMAGE_EXTS:
+            name += ".mp4"
+        dest = dest_dir / f"{key}_{name}"
         with open(dest, "wb") as fh:
             for chunk in resp.iter_content(chunk_size=1 << 20):
                 fh.write(chunk)
