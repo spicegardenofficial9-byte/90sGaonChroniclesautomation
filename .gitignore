@@ -5,3 +5,12 @@ __pycache__/
 .venv/
 .env
 scripts/client_secret*.json
+
+# the day's footage is only used locally and deleted after upload; never commit it
+videos/inbox/**/*.zip
+videos/inbox/**/*.mp4
+videos/inbox/**/*.mov
+videos/inbox/**/*.mkv
+videos/inbox/**/*.jpg
+videos/inbox/**/*.jpeg
+videos/inbox/**/*.png

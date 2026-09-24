@@ -5,6 +5,7 @@ Every video goes through two stages:
   2. publish:  after it has been checked, make it public (or scheduled) and
                move the source ZIP on Google Drive to the trash
 
+    python -m pipeline.run --slug ep --direct     # render + upload, public at the next daily slot
     python -m pipeline.run --slug ep              # preview: render + upload as private
     python -m pipeline.run --publish --slug ep    # make the previewed video public
     python -m pipeline.run --update-metadata --slug ep   # re-apply meta.yml title/description
@@ -52,6 +53,31 @@ def to_utc_rfc3339(value) -> str | None:
         log.warning("publish_at %s is in the past; uploading without a schedule", value)
         return None
     return when.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
+
+
+def next_publish_slot(config: dict, published: dict, now: dt.datetime | None = None) -> str | None:
+    """Next free day at `upload.default_publish_time` (IST) → RFC3339 UTC, or None to publish now.
+
+    Days that already have a scheduled video are skipped, so several ZIPs sent
+    on the same day go out on consecutive days.
+    """
+    at = str(config.get("upload", {}).get("default_publish_time") or "").strip()
+    if not at:
+        return None
+    hour, minute = (int(x) for x in at.split(":"))
+    now = now or dt.datetime.now(dt.timezone.utc)
+    taken = {e.get("publish_at") for e in published.values() if e.get("publish_at")}
+    day = now.astimezone(IST).date()
+    while True:
+        slot = dt.datetime(day.year, day.month, day.day, hour, minute, tzinfo=IST).astimezone(dt.timezone.utc)
+        value = slot.strftime("%Y-%m-%dT%H:%M:%SZ")
+        # YouTube needs publishAt a little in the future
+        if slot > now + dt.timedelta(minutes=15) and value not in taken:
+            return value
+        day += dt.timedelta(days=1)
 
 
 def pick_thumbnail_base(job, video: Path | None, work_dir: Path) -> Path | None:
@@ -121,8 +147,15 @@ def preview(job, args, history: History, published: dict) -> None:
     if not (args.dry_run or args.metadata_only):
         from .editor import cleanup_sources
         from .uploader import delete_video, upload_video
-        upload_cfg = dict(job.config.get("upload", {}), privacy_status="private")
-        video_id = upload_video(video, thumb, meta, upload_cfg)
+        publish_at = None
+        if args.direct:
+            # straight to public: scheduled for meta.yml publish_at, else the next free daily slot
+            publish_at = to_utc_rfc3339(job.meta.get("publish_at")) or next_publish_slot(job.config, published)
+            upload_cfg = dict(job.config.get("upload", {}),
+                              privacy_status=job.config.get("upload", {}).get("publish_privacy", "public"))
+        else:
+            upload_cfg = dict(job.config.get("upload", {}), privacy_status="private")
+        video_id = upload_video(video, thumb, meta, upload_cfg, publish_at=publish_at)
         old = published.get(job.slug, {})
         if old.get("status") == "preview" and old.get("video_id") not in (None, video_id):
             delete_video(old["video_id"])  # replaced by this new preview
@@ -131,7 +164,8 @@ def preview(job, args, history: History, published: dict) -> None:
         history.record(job.slug, meta)
         history.save()
         published[job.slug] = {
-            "status": "preview",
+            "status": ("scheduled" if publish_at else "published") if args.direct else "preview",
+            "publish_at": publish_at,
             "video_id": video_id,
             "url": f"https://youtu.be/{video_id}",
             "studio": f"https://studio.youtube.com/video/{video_id}/edit",
@@ -140,14 +174,23 @@ def preview(job, args, history: History, published: dict) -> None:
         }
         save_published(published)
         cleanup_sources(work_dir)  # downloaded ZIP + extracted clips are no longer needed here
-        if job.config.get("pipeline", {}).get("cleanup_inbox_after_upload"):
+        if args.direct or job.config.get("pipeline", {}).get("cleanup_inbox_after_upload"):
+            # the day's ZIP/clips are deleted once the video is on YouTube
             for f in job.folder.iterdir():
                 if f.suffix.lower() in VIDEO_EXTS | IMAGE_EXTS | {".zip"}:
                     f.unlink()
-        status = f"PRIVATE preview uploaded: https://youtu.be/{video_id} (not public yet)"
+        if args.direct:
+            when = (dt.datetime.fromisoformat(publish_at.replace("Z", "+00:00")).astimezone(IST)
+                    .strftime("%d %b %Y, %I:%M %p IST") if publish_at else "now")
+            status = f"uploaded, goes PUBLIC {when}: https://youtu.be/{video_id}"
+        else:
+            status = f"PRIVATE preview uploaded: https://youtu.be/{video_id} (not public yet)"
 
     save_outputs(job, meta, thumb)
+    if args.direct and not (args.dry_run or args.metadata_only):
+        shutil.rmtree(work_dir, ignore_errors=True)  # rendered video no longer needed locally
     log.info("[%s] %s", job.slug, status)
+    print(f"RESULT {job.slug}: {status}")
     write_summary(summary_lines(meta, status))
 
 
@@ -205,6 +248,8 @@ def main(argv=None) -> int:
     parser.add_argument("--metadata-only", action="store_true", help="skip rendering; only generate metadata")
     parser.add_argument("--publish", action="store_true", help="make the previewed --slug video public")
     parser.add_argument("--update-metadata", action="store_true", help="re-apply meta.yml text to the uploaded --slug video")
+    parser.add_argument("--direct", action="store_true",
+                        help="upload straight to public at the scheduled time (no private preview), then delete the ZIP")
     parser.add_argument("--force", action="store_true", help="re-render and replace an existing preview")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)

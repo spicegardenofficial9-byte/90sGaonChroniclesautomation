@@ -238,3 +238,54 @@ def test_publish_makes_preview_public_and_trashes_drive_zip(tmp_path, monkeypatc
     assert calls["privacy"] == ("abc", "public", None)
     assert calls["trashed"] == [link]
     assert published["ep1"]["status"] == "published"
+
+
+def test_next_publish_slot_skips_taken_days():
+    import datetime as dt
+
+    from pipeline.run import next_publish_slot
+
+    cfg = {"upload": {"default_publish_time": "18:00"}}
+    now = dt.datetime(2026, 9, 24, 5, 0, tzinfo=dt.timezone.utc)          # 10:30 IST
+    assert next_publish_slot(cfg, {}, now) == "2026-09-24T12:30:00Z"        # today 18:00 IST
+    taken = {"a": {"publish_at": "2026-09-24T12:30:00Z"}}
+    assert next_publish_slot(cfg, taken, now) == "2026-09-25T12:30:00Z"     # tomorrow
+    late = dt.datetime(2026, 9, 24, 13, 0, tzinfo=dt.timezone.utc)         # 18:30 IST, slot passed
+    assert next_publish_slot(cfg, {}, late) == "2026-09-25T12:30:00Z"
+    assert next_publish_slot({"upload": {"default_publish_time": ""}}, {}, now) is None
+
+
+def test_direct_mode_uploads_public_and_deletes_zip(tmp_path, monkeypatch):
+    import zipfile
+
+    from pipeline import run, uploader
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    job = make_job(tmp_path, "direct-ep", description="Aaj ki kahani.")
+    clip = tmp_path / "1.mp4"
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=30:duration=1",
+                    str(clip)], check=True, capture_output=True)
+    with zipfile.ZipFile(job.folder / "day.zip", "w") as zf:
+        zf.write(clip, "1.mp4")
+    job = load_job(job.folder, CONFIG)
+    job.config["edit"]["preset"] = "ultrafast"
+
+    sent = {}
+    monkeypatch.setattr(uploader, "upload_video",
+                        lambda video, thumb, meta, cfg, publish_at=None: sent.update(
+                            privacy=cfg["privacy_status"], at=publish_at, exists=video.exists()) or "VID123")
+    monkeypatch.setattr(run, "BUILD_DIR", tmp_path / "build")
+    monkeypatch.setattr(run, "PROCESSED_DIR", tmp_path / "processed")
+    monkeypatch.setattr(run, "PUBLISHED_PATH", tmp_path / "published.json")
+    history = History(tmp_path / "h.json")
+    published = {}
+    args = run.argparse.Namespace(dry_run=False, metadata_only=False, direct=True)
+    run.preview(job, args, history, published)
+
+    assert sent["privacy"] == "public" and sent["exists"]
+    assert sent["at"] and sent["at"].endswith("T12:30:00Z")               # 18:00 IST
+    assert published["direct-ep"]["status"] == "scheduled"
+    assert not (job.folder / "day.zip").exists()                          # ZIP deleted
+    assert not (tmp_path / "build" / "direct-ep").exists()                # render deleted
+    assert (tmp_path / "processed" / "direct-ep" / "description.txt").exists()
