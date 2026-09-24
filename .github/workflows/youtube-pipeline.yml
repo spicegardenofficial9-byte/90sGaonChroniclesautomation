@@ -5,10 +5,10 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "preview = render + upload PRIVATE, publish = make it public + delete the Drive ZIP"
+        description: "direct = edit + upload to go public at the scheduled time (daily use)"
         type: choice
-        options: [preview, publish, update-metadata, dry-run, metadata-only]
-        default: preview
+        options: [direct, preview, publish, update-metadata, dry-run, metadata-only]
+        default: direct
       slug:
         description: "Episode folder in videos/inbox/"
         required: true
@@ -44,6 +44,22 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q ffmpeg fonts-dejavu-core
 
+      # The day's ZIP is pushed in <100 MB parts to a temporary branch footage/<slug>
+      - name: Fetch footage
+        env:
+          SLUG: ${{ inputs.slug }}
+        run: |
+          if git ls-remote --exit-code origin "refs/heads/footage/$SLUG" >/dev/null; then
+            git fetch --depth 1 origin "footage/$SLUG"
+            mkdir -p "videos/inbox/$SLUG"
+            git archive FETCH_HEAD "videos/inbox/$SLUG" | tar -x
+            cat "videos/inbox/$SLUG"/day.zip.part-* > "videos/inbox/$SLUG/day.zip"
+            rm "videos/inbox/$SLUG"/day.zip.part-*
+            ls -lh "videos/inbox/$SLUG"
+          else
+            echo "No footage branch for $SLUG"
+          fi
+
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
@@ -62,6 +78,7 @@ jobs:
           case "$MODE" in
             publish) args+=(--publish) ;;
             update-metadata) args+=(--update-metadata) ;;
+            direct) args+=(--direct) ;;
             dry-run) args+=(--dry-run) ;;
             metadata-only) args+=(--metadata-only) ;;
           esac
@@ -79,6 +96,15 @@ jobs:
             videos/processed/*/description.txt
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Delete the footage branch
+        if: success() && (inputs.mode == 'direct' || inputs.mode == 'preview')
+        env:
+          SLUG: ${{ inputs.slug }}
+        run: |
+          if git ls-remote --exit-code origin "refs/heads/footage/$SLUG" >/dev/null; then
+            git push origin --delete "footage/$SLUG"
+          fi
 
       - name: Commit upload history back to the repo
         if: always()
