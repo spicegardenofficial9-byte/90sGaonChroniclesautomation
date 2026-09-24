@@ -273,8 +273,11 @@ def _final_pass(job: VideoJob, src: Path, dest: Path, total: float, edit_cfg: di
         text_file = work_dir / "overlay.txt"
         text_file.write_text(overlay_text, encoding="utf-8")
         secs = edit_cfg.get("title_overlay_seconds", 4)
+        w, h = RESOLUTIONS[edit_cfg.get("format", "landscape")]
+        # bold DejaVu glyphs average ~0.62 em wide; keep the line within 88% of the frame width
+        size = int(min(h / 16, w * 0.88 / (0.62 * max(len(overlay_text), 1))))
         vchain.append(
-            f"drawtext=fontfile='{font}':textfile='{text_file}':fontcolor=white:fontsize=h/16"
+            f"drawtext=fontfile='{font}':textfile='{text_file}':fontcolor=white:fontsize={size}"
             f":box=1:boxcolor=black@0.45:boxborderw=24:x=(w-text_w)/2:y=h*0.72"
             f":enable='between(t,0.5,{secs})'"
         )

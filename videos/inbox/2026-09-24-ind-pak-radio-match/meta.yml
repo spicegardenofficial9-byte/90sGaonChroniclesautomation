@@ -1,0 +1,42 @@
+title: "India vs Pakistan Match aur Gaon Ka Radio 📻 | 90s Wali Yaadein"
+topic: "India vs Pakistan match on the radio"
+summary: >
+  Poora gaon bargad ke neeche radio ke paas jama hai, India-Pakistan ka match chal raha hai.
+  Beech match mein radio band ho jaata hai, aur ek chhota ladka purani batteries garam karke
+  radio ko phir se zinda kar deta hai. Aakhir mein India jeet jaata hai aur gaon jhoom uthta hai.
+highlights:
+  - "Bargad ke neeche Murphy radio ke chaaron taraf poora gaon"
+  - "Aakhri overs mein radio ka band ho jaana, sabki saansein ruk gayi"
+  - "Batteries ko garam karne wala desi jugaad"
+  - "Dadaji ki chai aur radio ki roshni wali shaam"
+  - "India ki jeet par phoolon ki baarish"
+keywords: ["india vs pakistan", "ind vs pak", "radio commentary", "90s cricket", "cricket nostalgia",
+           "murphy radio", "gaon ki yaadein", "battery jugaad", "90s kids", "village cricket"]
+language: hinglish
+
+description: |
+  Jab India-Pakistan ka match hota tha, toh poore gaon ki dhadkan ek chhote se radio mein band ho jaati thi. 📻🏏
+
+  Na TV, na mobile. Bas bargad ka ped, ek purana Murphy radio, aur uske chaaron taraf baithe dadaji, chacha, bachche, sab. Har chauke par taaliyan, har wicket par sannata.
+
+  Aur phir wahi hua jiska sabko darr tha: match ke sabse zaroori pal mein radio chup ho gaya! Knob ghumaye, antenna hilaya, par sirf khar-khar. Tabhi gaon ke ek chhote se ladke ne woh jugaad nikala jo har 90s kid jaanta tha: batteries ko haathon mein ragad ke garam karo, wapas daalo, aur... commentary phir se shuru! 😄
+
+  Dadaji ne khush hoke chai pilayi, aur jab India jeeta, toh poora gaon phoolon ki baarish mein naach utha. 🇮🇳🎉
+
+  Is kahani mein:
+  📻 Bargad ke neeche radio par match sunta poora gaon
+  🔋 Batteries garam karne wala desi jugaad
+  ☕ Dadaji ki chai aur radio ki roshni
+  🎉 India ki jeet ka jashn
+
+  Kya aapne bhi kabhi batteries garam karke radio ya remote chalaya hai? Aapke gaon mein match kahan sunte the? Comments mein batayein! 👇
+
+hashtags: ["#IndiaVsPakistan", "#IndVsPak", "#RadioCommentary", "#CricketNostalgia", "#Shorts"]
+thumbnail_text: "IND vs PAK RADIO"
+overlay_text: "IND vs PAK on the Radio"
+
+overrides:
+  edit:
+    format: short        # vertical 1080x1920 clips, 40s → YouTube Short
+  upload:
+    category_id: "17"    # Sports
