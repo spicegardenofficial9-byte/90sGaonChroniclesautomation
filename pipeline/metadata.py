@@ -227,31 +227,26 @@ def assemble_description(job: VideoJob, body: str, hashtags: list[str]) -> str:
 
 # --------------------------------------------------------------------------- generators
 
+# Short, catchy, plain-English pieces. Every description frames the video as 90s lifestyle.
 HOOKS = [
-    "Yaad hai woh din jab {topic} ka matlab tha poora gaon ek saath? 🌾",
-    "Chaliye wapas chalte hain 90s ke gaon mein, jahan {topic} sirf ek cheez nahi, ek ehsaas tha.",
-    "Na mobile, na internet, bas {topic} aur dher saari masti. Aaj ki kahani usi zamane ki hai.",
-    "Kuch yaadein kabhi purani nahi hoti. {topic} unmein se ek hai. ❤️",
-    "Agar aapka bachpan gaon mein beeta hai, toh {topic} ki yeh kahani aapko zaroor rula degi. 🥹",
-    "Mitti ki khushboo, chulhe ki roti aur {topic}. Aaj khulte hain 90s ki yaadon ke panne.",
-    "Ek zamana tha jab {topic} ke liye hum poore saal intezaar karte the.",
+    "No phones. No internet. Just {topic}, 90s style. 🌾",
+    "Remember when {topic} was the best part of the day? 📻",
+    "This is what {topic} looked like in the 90s. ❤️",
+    "Only 90s kids will remember {topic} like this. 🥹",
+    "Life was simple in the 90s, and {topic} proves it. ✨",
+    "Take a trip back to the 90s: {topic}, the way it used to be. 🏡",
+    "Before screens took over, there was {topic}. 🪁",
 ]
 MIDDLES = [
-    "Is video mein dekhiye {summary}",
-    "Aaj ke episode mein: {summary}",
-    "Is kahani mein aap dekhenge {summary}",
-    "Humne koshish ki hai un palon ko phir se jeene ki: {summary}",
+    "{summary}",
+    "In this short: {summary}",
+    "The 90s, one small moment at a time: {summary}",
 ]
 QUESTIONS = [
-    "{topic} se judi aapki sabse pyaari yaad kya hai? Comments mein zaroor batayein! 👇",
-    "Kya aapko bhi {topic} ki koi yaad hai? Neeche likhiye, hum padhenge. 💬",
-    "Apne bachpan ki {topic} wali koi kahani ho toh comment karein! 🙏",
-    "Aap kis gaon/shehar se hain? Wahan ki {topic} wali yaadein humse share karein! 📍",
-]
-CTAS = [
-    "Video pasand aaye toh Like karein aur apne bachpan ke doston ke saath share karein.",
-    "Yeh video un doston ko bhejiye jinke saath aapne yeh din jiye the. 🤝",
-    "Aise hi aur 90s ki gaon wali kahaniyon ke liye channel ko subscribe karein.",
+    "What's your favourite 90s memory of {topic}? 👇",
+    "Did you grow up with {topic} too? Tell us below 👇",
+    "Tag someone who remembers {topic} like this 👇",
+    "Which part took you straight back to the 90s? 💬",
 ]
 
 
@@ -259,18 +254,14 @@ def template_generate(job: VideoJob, attempt: int) -> dict:
     rng = random.Random(f"{job.slug}:{attempt}")
     topic = job.meta.get("topic") or job.title
     summary = str(job.meta.get("summary") or job.title).strip()
-    lines = [rng.choice(HOOKS).format(topic=topic), "", rng.choice(MIDDLES).format(summary=summary.rstrip(".") + ".")]
-    highlights = list(job.meta.get("highlights") or [])
-    if highlights:
-        rng.shuffle(highlights)
-        bullet = rng.choice(["✨", "🌾", "📻", "🪁", "🏡"])
-        lines += [""] + [f"{bullet} {h}" for h in highlights]
-    if job.meta.get("location") or job.meta.get("year"):
-        where = ", ".join(str(x) for x in (job.meta.get("location"), job.meta.get("year")) if x)
-        lines += ["", f"📍 {where}"]
-    lines += ["", rng.choice(QUESTIONS).format(topic=topic), rng.choice(CTAS)]
+    lines = [rng.choice(HOOKS).format(topic=topic), "",
+             rng.choice(MIDDLES).format(summary=summary.rstrip(".") + "."), "",
+             rng.choice(QUESTIONS).format(topic=topic)]
+    title = job.meta.get("title") or job.title
+    if "90" not in title:
+        title = f"{title} | 90s Life"
     return {
-        "title": job.meta.get("title") or job.title,
+        "title": title,
         "body": "\n".join(lines),
         "hashtags": [],
         "tags": [],
@@ -281,8 +272,8 @@ def template_generate(job: VideoJob, attempt: int) -> dict:
 SCHEMA = {
     "type": "object",
     "properties": {
-        "title": {"type": "string", "description": "YouTube title, max 90 characters, curiosity-driven, no clickbait lies"},
-        "body": {"type": "string", "description": "Description text WITHOUT hashtags, chapters or channel footer"},
+        "title": {"type": "string", "description": "YouTube title in plain English, max 70 characters, includes '90s', curiosity-driven, no clickbait lies"},
+        "body": {"type": "string", "description": "40-80 word plain-English description WITHOUT hashtags, chapters or channel footer"},
         "hashtags": {"type": "array", "items": {"type": "string"},
                      "description": "8-12 hashtags specific to THIS video, CamelCase, starting with #"},
         "tags": {"type": "array", "items": {"type": "string"},
@@ -299,7 +290,7 @@ def ai_generate(job: VideoJob, history: History, attempt: int, feedback: str = "
 
     channel = job.config.get("channel", {})
     cfg = job.config.get("metadata", {})
-    language = job.meta.get("language") or channel.get("default_language", "hinglish")
+    language = job.meta.get("language") or channel.get("default_language", "english")
     recent = history.videos[-15:]
     overused = sorted(history.hashtag_counts, key=history.hashtag_counts.get, reverse=True)[:25]
 
@@ -308,13 +299,14 @@ def ai_generate(job: VideoJob, history: History, attempt: int, feedback: str = "
         f"Channel niche: {channel.get('niche', '').strip()}\n"
         f"Audience: {channel.get('audience', '')}\n"
         f"Tone: {channel.get('tone', '')}\n\n"
-        "Write metadata that is specific to the video described by the user: mention its concrete "
-        "details, not generic nostalgia filler. Each video's description must read as clearly "
-        "different from the channel's earlier descriptions: vary the opening line, structure, "
-        "emojis and closing question. Descriptions should be 120-250 words: a strong 1-2 line hook "
-        "(this is what shows in search), a short story-style summary, 3-5 highlight lines, and one "
-        "question inviting comments. Hashtags must be relevant to this video's specific content; "
-        "avoid the channel's overused hashtags listed by the user."
+        "Write in plain, simple English. The title and description must frame the video as 90s "
+        "lifestyle and nostalgia (the title includes '90s'), not just describe what is on screen. "
+        "The description is short and catchy: 40-80 words, a one-line hook, two or three sentences "
+        "tying the video's concrete details to 90s life, and one question inviting comments. "
+        "Each description must read clearly differently from the channel's earlier ones: vary the "
+        "opening line, structure, emojis and closing question. Hashtags mix this video's specific "
+        "topic with popular nostalgia tags (#90sKids, #90sNostalgia, #Shorts); avoid the channel's "
+        "overused hashtags listed by the user."
     )
     prompt = {
         "language": language,

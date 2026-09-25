@@ -14,20 +14,26 @@ the repo's default branch (`claude/eloquent-ride-0bswjo` unless it changes).
 1. **Find the ZIP.** Chat attachments are saved under `/tmp/claude-0/`; look for the newest `*.zip`,
    e.g. `find /tmp/claude-0 -name '*.zip' -mmin -120`. If none arrived, say so.
 2. **Understand the footage.** Install ffmpeg if missing (`sudo apt-get install -y -q ffmpeg`).
-   Unzip to the scratchpad, list the clips, grab a few frames
+   Unzip to the scratchpad, list the clips (files may sit in a subfolder), grab a few frames
    (`ffmpeg -ss 2 -i clip.mp4 -frames:v 1 f.jpg`) and look at them, so the description matches what
-   is on screen. Combine that with anything the user wrote. Clips play in name order.
-3. **Write `videos/inbox/<slug>/meta.yml`** (slug = `YYYY-MM-DD-short-topic`):
-   - `title`: under 70 chars, Hinglish, specific, with 1 emoji
-   - `topic`, `summary`, `highlights` (3–5), `keywords` (6–10), `location` or `year` if known
-   - `description`: 120–250 words in Hinglish (1–2 line hook, story, highlights, one comment question).
-     It must read differently from earlier videos. Check the openings in `data/metadata_history.json`.
-   - `hashtags`: 3–5 specific to this video that are not in `data/metadata_history.json`
-     (the pipeline adds the brand tag and fills the rest)
-   - `thumbnail_text`: 2–4 punchy words in Latin script
-   - `language: hinglish`
+   is on screen. Combine that with anything the user wrote. Work out the story order and re-zip
+   the clips named `1_...mp4`, `2_...mp4`, … so they play in that order.
+3. **Write `videos/inbox/<slug>/meta.yml`** (slug = `YYYY-MM-DD-short-topic`). Everything is in
+   **plain English**, and the title and description must be about **90s lifestyle and nostalgia**, not
+   a bare description of what is on screen. Never add the owner's email or any contact details.
+   - `title`: under 70 chars, includes "90s", catchy, 1 emoji (e.g. "A 90s Village Morning 🌾 ...")
+   - `topic`, `summary`, `highlights` (3–5), `keywords` (6–10)
+   - `description`: **short and catchy, 40–80 words**: a one-line hook, 2–3 sentences linking the
+     clips to 90s life, and one question for the comments. It must read differently from earlier
+     videos; check the openings in `data/metadata_history.json`.
+   - `hashtags`: 3–4 specific to this video that are not in `data/metadata_history.json`, plus viral
+     ones: `#90sKids`, `#90sNostalgia`, `#Shorts`, `#Viral`. The pipeline adds the brand tag and fills
+     the rest from the viral pool, up to 14.
+   - `thumbnail_text`: 2–4 punchy words; `overlay_text`: a short on-screen title
+   - `language: english`
    - `publish_at` only if the user asked for a specific time. Otherwise the next free daily slot
      (`upload.default_publish_time` in `config/channel.yml`, 18:00 IST) is used.
+   - Vertical clips under 60s in total: add `overrides: {edit: {format: short}}`.
    Pull first, then commit and push `meta.yml` to the work branch.
 4. **Push the footage to a temporary branch** (split, because GitHub rejects files over 100 MB):
    ```bash
