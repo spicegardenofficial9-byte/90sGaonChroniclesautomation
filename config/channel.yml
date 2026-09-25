@@ -9,7 +9,7 @@ channel:
     village in the 1990s: gaon ki galiyan, school days, festivals, old games,
     Doordarshan evenings, chulha cooking, monsoon, fairs and family life.
   audience: "Indians (and the diaspora) who grew up in the 80s/90s and miss village life"
-  default_language: "hinglish"   # hinglish | hindi | english
+  default_language: "english"   # english | hinglish | hindi
   tone: "warm, nostalgic, storytelling, respectful, lightly humorous"
 
   # Always added to every video (counted in YouTube's 15-hashtag limit).
@@ -20,25 +20,24 @@ channel:
   hashtag_pool:
     - "#90sKids"
     - "#90sNostalgia"
-    - "#VillageLife"
-    - "#GaonKiYaadein"
-    - "#DesiNostalgia"
-    - "#IndianVillage"
-    - "#ChildhoodMemories"
-    - "#PuranaZamana"
-    - "#RuralIndia"
-    - "#DesiVibes"
     - "#Nostalgia"
-    - "#BachpanKeDin"
+    - "#Throwback"
+    - "#ChildhoodMemories"
+    - "#VillageLife"
+    - "#IndianVillage"
+    - "#DesiNostalgia"
     - "#OldIsGold"
-    - "#GaonKaJeevan"
+    - "#RetroIndia"
+    - "#90sLife"
+    - "#Viral"
+    - "#Trending"
+    - "#Shorts"
+    - "#ExplorePage"
 
   # Appended to every description (links, CTA, credits).
   footer: |
-    🔔 Subscribe to 90s Gaon Chronicles for more gaon ki kahaniyan:
+    🔔 Subscribe for more 90s village life stories:
     https://www.youtube.com/@90sGaonChronicles?sub_confirmation=1
-
-    📩 Business / collaborations: add-your-email@example.com
 
 upload:
   category_id: "22"            # 22 = People & Blogs, 24 = Entertainment, 19 = Travel & Events
@@ -47,7 +46,7 @@ upload:
   default_publish_time: "18:00"  # IST. --direct uploads go public at the next free day at this time ("" = immediately)
   made_for_kids: false
   contains_synthetic_media: false  # set true if any part is AI-generated/realistic-altered
-  default_language: "hi"
+  default_language: "en"
   playlist_id: ""              # optional: add every upload to this playlist
   notify_subscribers: true
 
@@ -65,7 +64,7 @@ edit:
 metadata:
   use_ai: true                 # uses Claude when ANTHROPIC_API_KEY is set; falls back to templates
   model: "claude-opus-5"
-  max_hashtags: 12             # YouTube ignores ALL hashtags if there are more than 15
+  max_hashtags: 14             # YouTube ignores ALL hashtags if there are more than 15
   min_new_hashtags: 3          # each video gets at least this many hashtags never used before
   max_hashtag_overlap: 0.5     # max Jaccard similarity to any previous video's hashtag set
   max_description_similarity: 0.6  # 0..1, reject descriptions too close to an older one
