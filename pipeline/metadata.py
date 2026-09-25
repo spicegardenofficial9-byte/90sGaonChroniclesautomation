@@ -143,11 +143,16 @@ def select_hashtags(job: VideoJob, suggested: list[str], history: History) -> li
     pool = sorted((t for t in pool if t.lower() not in {s.lower() for s in brand + specific}), key=history.used)
 
     chosen = brand[:max_tags]
-    # never-used tags go first, since they make the set unique. Leave ~4 slots
-    # for the broader pool tags, which help discovery.
-    new_limit = max(min_new, max_tags - len(chosen) - 4)
-    chosen += new_tags[:max(0, min(new_limit, max_tags - len(chosen)))]
-    for t in reused + pool:
+    # just enough never-used tags to make the set unique (tags given in meta.yml count)...
+    have_new = sum(1 for c in chosen if history.used(c) == 0 and c.lower() not in
+                   {b.lower() for b in channel.get("brand_hashtags", [])})
+    for t in new_tags:
+        if have_new >= min_new or len(chosen) >= max_tags:
+            break
+        chosen.append(t)
+        have_new += 1
+    # ...then the popular pool tags (viral/discovery), then anything else
+    for t in pool + reused + new_tags:
         if len(chosen) >= max_tags:
             break
         if t not in chosen:
